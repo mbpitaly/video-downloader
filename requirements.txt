@@ -1,0 +1,2 @@
+# Runtime dependency (download engine). Everything else is stdlib.
+yt-dlp
