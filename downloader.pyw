@@ -5,7 +5,6 @@ import tkinter as tk
 from tkinter import filedialog, messagebox
 from tkinter import ttk
 import yt_dlp
-import time
 
 class VideoDownloaderApp:
     def __init__(self, root):
@@ -123,14 +122,22 @@ class VideoDownloaderApp:
 
                 status_text = f"{percent:.1f}% | {mb_downloaded:.1f} / {mb_total:.1f} MB | {rate_str} | ETA: {eta_str}"
                 
-                self.root.after(0, self.update_gui_progress, percent, status_text)
+                self.safe_after(0, self.update_gui_progress, percent, status_text)
                 
         elif d['status'] == 'finished':
-            self.root.after(0, lambda: self.stats_label.config(text="100.0% | Merging Audio/Video with FFmpeg..."))
+            self.safe_after(0, lambda: self.stats_label.config(text="100.0% | Merging Audio/Video with FFmpeg..."))
 
     def update_gui_progress(self, percent, text):
         self.progress_bar['value'] = percent
         self.stats_label.config(text=text)
+
+    def safe_after(self, ms, callback, *args):
+        # Worker threads call this; if the window was closed mid-download the
+        # root is destroyed and after() raises TclError. Swallow it quietly.
+        try:
+            self.root.after(ms, callback, *args)
+        except tk.TclError:
+            pass
 
     def start_download(self):
         url = self.url_entry.get().strip()
@@ -168,7 +175,8 @@ class VideoDownloaderApp:
             'no_warnings': True,
             'updatetime': False,
             'progress_hooks': [self.progress_hook],
-            'nocheckcertificate': False
+            'nocheckcertificate': False,
+            'merge_output_format': 'mp4'
         }
         # If ffmpeg sits next to the app (installer build), point yt-dlp at it.
         bundled_dir = os.path.dirname(sys.executable)
@@ -188,7 +196,7 @@ class VideoDownloaderApp:
                 error_msg = str(e)
 
         self.is_downloading = False
-        self.root.after(0, self.finish_download, error_msg, was_cancelled)
+        self.safe_after(0, self.finish_download, error_msg, was_cancelled)
 
     def finish_download(self, error_msg, was_cancelled):
         self.btn_start.config(state=tk.NORMAL)
